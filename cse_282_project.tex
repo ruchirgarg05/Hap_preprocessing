@@ -1,7 +1,7 @@
 \documentclass[9pt]{osa-supplemental-document}
 \setboolean{shortarticle}{false}
 
-\title{Preprocessing Reads to find false variants}
+\title{Variant Calling for Noisy Reads}
 \author{} %leave this blank
 %% DO NOT ADD AUTHOR INFORMATION HERE; IT WILL BE ADDED DURING PRODUCTION
 
@@ -16,17 +16,40 @@
 
 \section{High level Overview:}
 
-We have different haplotype sequences reads/ fragments, and we wish to preprocess the reads to reduce the noise in the given fragments and pass it to Hapcut function or for that matter any algorithm that takes fragments to construct the haplotype iformation. 
+We have different haplotype sequences reads/ fragments, and we wish to preprocess the reads to reduce the noise in the given fragments and pass it to haplotype assembly algorithm. 
 
 The noise is generally a sequencing error which is randomly distributed over the fragments which flips the bit for some variant location in few of the fragments. However some sequencing are prone to systematic sequencing errors, and these are classified falsely as variants. 
 
 For a true variant the allele in the fragment depends on the haplotype it is sampled from however for the false variant this is not the case, since the alleles are homozygous in both the haplotype sequences.
+
 Our goal is to identify these false variants, but the problem is we do not know the original haplotype pairs. 
 
 
 But with the given reads we should be able to extract these false variant locations, as for the reads having common variants would either contain the same bit if they are sampled from the same haplotype, or would be complement of each other if sampled from the different haplotype for all the variants except for the false variant, since it is independent of the haplotype.
 
 To find the false variant we operate over the fragment pairs and try to calculate the similarity of the reads and then calculate the probablity whether or not the two reads are sampled from the same haplotype. 
+
+\subsection{Problem Formulation}
+Given a reference genome $Ref$, and a set of reads $R$ of an alternate Genome $G$ sampled of a different human decide whether or not the site $S_i$, corresponding to the $i_{th}$ site is a variant site, i.e. is different compared to the reference genome $Ref$.
+\subsection{Inputs}
+\begin{itemize}
+    \item A reference genome $Ref$ of len $ref\_len$ from which the comparison needs to be made.
+    \item A set of reads $R$ sampled from alternate genome $G$ of the same length, with start index $st$ and end of the index $en$, which is its position in the reference genome $Ref$.
+    \item The error probability of each of the allele in each of the sample (For simplicity using $e$ as a constant, $0 < e < 1$). 
+    
+\end{itemize}
+
+Each read is in the form 0 or 1, 0 if it matches to the reference genome and 1 if it matches to the alt genome.
+The reference genome is an already sampled genome (assuming it has no errors for simplicity).
+
+\subsection{Output}
+\begin{itemize}
+    \item Determine whether or not a site with index $i$, corresponding to the reference genome is a variant site.
+    \item If it is a variant site, with what confidence can we say it is actually a variant site.
+\end{itemize} 
+
+
+
 
 \subsection{Given the read partition probablity of variant to False}
 
@@ -87,141 +110,141 @@ Our job is now reduced to computing the probablities for which P($R1 \in H1, R2 
 
 Now we need to find the value of probablity where fragments {$f1$, $f2$,... $fi,} \in R1$ and ($f3$, $f4$,.. $fj) \in R2$, such that R1 \cap R2 \in $\phi$. 
 
-\subsection{Estimate using the second order probablity distribution}
+% \subsection{Estimate using the second order probablity distribution}
 
 
-There would be a total of $2^n$ different combinations of fragments selection from R1, R2, where n is the coverage for the given fragment. 
+% There would be a total of $2^n$ different combinations of fragments selection from R1, R2, where n is the coverage for the given fragment. 
 
-However in the case of Haplotype assembly we can make inferences whether two of the fragments are sampled from the same haplotype with a good confidence.
+% However in the case of Haplotype assembly we can make inferences whether two of the fragments are sampled from the same haplotype with a good confidence.
 
-Since the sequencing error rate is low, if the fragments have a significant amount of match, we can with confidence say that it belongs to the same haplotype, and if for most parts one is the complement of each other then it is likely sampled from different haplotype.
-So we dont know what the actual haplotype is but we do know if two fragments are sampled from the same haplotype or not. 
+% Since the sequencing error rate is low, if the fragments have a significant amount of match, we can with confidence say that it belongs to the same haplotype, and if for most parts one is the complement of each other then it is likely sampled from different haplotype.
+% So we dont know what the actual haplotype is but we do know if two fragments are sampled from the same haplotype or not. 
 
-\begin{equation*}
-\begin{split}
-    P($f1$, $f2$,... $fi \in R1$, $f3$, $f4$,..$fj \in R2$) = P($f1$, $f2$,... $fi \in R1$)* P($f3$, $f4$,... $fj \in R2$)
-\end{split}
+% \begin{equation*}
+% \begin{split}
+%     P($f1$, $f2$,... $fi \in R1$, $f3$, $f4$,..$fj \in R2$) = P($f1$, $f2$,... $fi \in R1$)* P($f3$, $f4$,... $fj \in R2$)
+% \end{split}
     
-\end{equation*}
+% \end{equation*}
 
-Given we can derive whether two fragments originate from the same haplotype, 
-we can estimate the above using a second degree approximation.
+% Given we can derive whether two fragments originate from the same haplotype, 
+% we can estimate the above using a second degree approximation.
 
-\\
-\begin{multline*}
-P( ($f1$, $f2$,... $fi,) \in R1$ and ($f3$, $f4$,.. $fj) \in R2$) = \\
-P($f1 \in R1$)*P($f2 \in R1 | $ $f1 \in R1$)*P($fi \in R1 | $ $f_{i-1} \in R1$)*.....*\\
-P($f3 \in R2$)*P($f4 \in R2 | $ $f3 \in R2$)*P($fj \in R2 | $ $f_{j-1} \in R1$)
-\end{multline*}
-\\
+% \\
+% \begin{multline*}
+% P( ($f1$, $f2$,... $fi,) \in R1$ and ($f3$, $f4$,.. $fj) \in R2$) = \\
+% P($f1 \in R1$)*P($f2 \in R1 | $ $f1 \in R1$)*P($fi \in R1 | $ $f_{i-1} \in R1$)*.....*\\
+% P($f3 \in R2$)*P($f4 \in R2 | $ $f3 \in R2$)*P($fj \in R2 | $ $f_{j-1} \in R1$)
+% \end{multline*}
+% \\
 
-This can be said as a good approximation because of low sequencing error rate in general. 
-For example if we consider just three fragments: f1, f2, f3 (assuming it is sampled from the same fragment ) and if we dont take advantage of their structural property, the probablity of all the three coming from the same haplotype is  
+% This can be said as a good approximation because of low sequencing error rate in general. 
+% For example if we consider just three fragments: f1, f2, f3 (assuming it is sampled from the same fragment ) and if we dont take advantage of their structural property, the probablity of all the three coming from the same haplotype is  
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) = $1/2^3$ 
-\end{split}    
-\end{equation*}
-\begin{equation*}
-\begin{split}
-    P($f1, f2, \in R1$, $f3 \in R2$) = $1/2^3$
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) = $1/2^3$ 
+% \end{split}    
+% \end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, \in R1$, $f3 \in R2$) = $1/2^3$
+% \end{split}    
+% \end{equation*}
 
-And is the same for all the combinations of f1, f2, f3 coming from either R1 or R2, will have equal probablity. Hence the likelihood that f1, f2, f3 sampled from R1 would be the same as f1, f2, sampled from R1 and f3 sampled from R2. 
+% And is the same for all the combinations of f1, f2, f3 coming from either R1 or R2, will have equal probablity. Hence the likelihood that f1, f2, f3 sampled from R1 would be the same as f1, f2, sampled from R1 and f3 sampled from R2. 
 
-However if we take advantage of the structural property, 
-we can calculate the probablity as:
+% However if we take advantage of the structural property, 
+% we can calculate the probablity as:
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) = P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f1, f2 \in R1$) 
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) = P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f1, f2 \in R1$) 
+% \end{split}    
+% \end{equation*}
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2 \in R1$, $f3 \in R2$) = P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f1, f2 \in R1$) 
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2 \in R1$, $f3 \in R2$) = P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f1, f2 \in R1$) 
+% \end{split}    
+% \end{equation*}
 
-Which can be simplified to a second order approximation:
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) $\approx$ P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f2 \in R1$) 
-\end{split}    
-\end{equation*} 
-\begin{equation*}
-\begin{split}
-    P($f1, f2 \in R1$, $f3 \in R2$) $\approx$ P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R2 | f2 \in R1$) 
-\end{split}    
-\end{equation*} 
+% Which can be simplified to a second order approximation:
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) $\approx$ P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f2 \in R1$) 
+% \end{split}    
+% \end{equation*} 
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2 \in R1$, $f3 \in R2$) $\approx$ P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R2 | f2 \in R1$) 
+% \end{split}    
+% \end{equation*} 
 
-How do we now find out P($fj \in R1 | $ $f_{j-1} \in R1$), that is both of the fragments belong to the same haplotype group.
+% How do we now find out P($fj \in R1 | $ $f_{j-1} \in R1$), that is both of the fragments belong to the same haplotype group.
 
-Given   $f_{j-1} \in R1$, we need to estimate the probablity $f_j \in R1$.
+% Given   $f_{j-1} \in R1$, we need to estimate the probablity $f_j \in R1$.
 
-If both the fragments are sampled from the same haplotype, we can say the intersection of both the fragments should be same, hence if it is same we have probablity of (1-e) and e if it is different. 
+% If both the fragments are sampled from the same haplotype, we can say the intersection of both the fragments should be same, hence if it is same we have probablity of (1-e) and e if it is different. 
 
-\begin{equation*}
-    \begin{split}
-         P($f_j \in R1 | $ $f_{j-1} \in R1$) = $(1-e)^{matching\_bits}$*$e^{mismatching\_bits}$
-    \end{split}
-\end{equation*}
+% \begin{equation*}
+%     \begin{split}
+%          P($f_j \in R1 | $ $f_{j-1} \in R1$) = $(1-e)^{matching\_bits}$*$e^{mismatching\_bits}$
+%     \end{split}
+% \end{equation*}
 
-And similarly if it belongs to the other haplotype group that is one is in set R1 while the other is in R2, would be the same with the powers e and (1-e) reversed. 
-\begin{equation*}
-    \begin{split}
-         P($f_j \in R1 | $ $f_{j-1} \in R2$) = $(e)^{matching\_bits}$*$(1-e)^{mismatching\_bits}$
-    \end{split}
-\end{equation*}
+% And similarly if it belongs to the other haplotype group that is one is in set R1 while the other is in R2, would be the same with the powers e and (1-e) reversed. 
+% \begin{equation*}
+%     \begin{split}
+%          P($f_j \in R1 | $ $f_{j-1} \in R2$) = $(e)^{matching\_bits}$*$(1-e)^{mismatching\_bits}$
+%     \end{split}
+% \end{equation*}
 
 
-If we divide the above we get 
-\begin{equation*}
-    \begin{split}
-         P($f_j \in R1 | $ $f_{j-1} \in R1$) / P($f_j \in R1 | $ $f_{j-1} \in R2$) = $((1-e)/e)^{matching\_bits}$*$(e/(1-e)^){mismatching\_bits}$
-    \end{split}
-\end{equation*}
-Rewriting:
+% If we divide the above we get 
+% \begin{equation*}
+%     \begin{split}
+%          P($f_j \in R1 | $ $f_{j-1} \in R1$) / P($f_j \in R1 | $ $f_{j-1} \in R2$) = $((1-e)/e)^{matching\_bits}$*$(e/(1-e)^){mismatching\_bits}$
+%     \end{split}
+% \end{equation*}
+% Rewriting:
 
-\begin{equation*}
-    \begin{split}
-         P($f_j \in R1 | $ $f_{j-1} \in R1$) / P($f_j \in R1 | $ $f_{j-1} \in R2$) = $((1-e)/e)^{matching\_bits - mismatching\_bits}$
-    \end{split}
-\end{equation*}
+% \begin{equation*}
+%     \begin{split}
+%          P($f_j \in R1 | $ $f_{j-1} \in R1$) / P($f_j \in R1 | $ $f_{j-1} \in R2$) = $((1-e)/e)^{matching\_bits - mismatching\_bits}$
+%     \end{split}
+% \end{equation*}
 
-We can see if the matching bits are greater than the mismatching bits the power becomes greater than one, and $(1-e/e) > 1$ since e is small, if we take e=0.05, $(1-e)/e \approx 20$.
+% We can see if the matching bits are greater than the mismatching bits the power becomes greater than one, and $(1-e/e) > 1$ since e is small, if we take e=0.05, $(1-e)/e \approx 20$.
 
-Hence for the example of f1, f2, f3 mentioned above:
+% Hence for the example of f1, f2, f3 mentioned above:
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
-     P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f2 \in R1$) / \\
-    P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R2 | f2 \in R1$) 
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
+%      P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R1 | f2 \in R1$) / \\
+%     P($f1\in R1$)*P($f2\in R1 | f1\in R1$) * P($f3\in R2 | f2 \in R1$) 
+% \end{split}    
+% \end{equation*}
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
-     P($f3\in R1 | f2 \in R1$) /
-    P($f3\in R2 | f2 \in R1$) 
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
+%      P($f3\in R1 | f2 \in R1$) /
+%     P($f3\in R2 | f2 \in R1$) 
+% \end{split}    
+% \end{equation*}
 
-\begin{equation*}
-\begin{split}
-    P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
-      $((1-e)/e)^{matching\_bits - mismatching\_bits}$
-\end{split}    
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+%     P($f1, f2, f3 \in R1$) / P($P($f1, f2, f3 \in R1$)f1, f2 \in R1$, $f3 \in R2$) $\approx$ \\
+%       $((1-e)/e)^{matching\_bits - mismatching\_bits}$
+% \end{split}    
+% \end{equation*}
 
-Hence we can see that if take advantage of the structural property we can calculate whether or not if the two fragments are sampled from the same haplotype, this can be estimated with a good confidence just by second order approximation. 
+% Hence we can see that if take advantage of the structural property we can calculate whether or not if the two fragments are sampled from the same haplotype, this can be estimated with a good confidence just by second order approximation. 
 
-That is if f2 and f3 have matching bits, its likelihood that all the the three being sampled from the same haplotype is much more that f1, f2 coming from one haplotype and f3 from other. 
+% That is if f2 and f3 have matching bits, its likelihood that all the the three being sampled from the same haplotype is much more that f1, f2 coming from one haplotype and f3 from other. 
 
 
 \subsection{Estimating the likelihood of the variant coming from heterozygous genotype}
